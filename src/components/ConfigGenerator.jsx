@@ -467,7 +467,7 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
         setDeployMessage(`Deployment error: ${data.error}`);
       }
     } catch (err) {
-      setDeployMessage('Failed to reach local backend server. Ensure Express backend is running on port 5000.');
+      setDeployMessage(`Failed to reach backend server at ${backendUrl}. Ensure the server is online and CORS is enabled.`);
     } finally {
       setIsDeploying(false);
     }

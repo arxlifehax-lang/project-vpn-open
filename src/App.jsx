@@ -146,7 +146,13 @@ export default function App() {
   });
   
   const [backendUrl, setBackendUrl] = useState(() => {
-    return localStorage.getItem('shieldlink_backend_url') || getBackendUrl();
+    const saved = localStorage.getItem('shieldlink_backend_url');
+    if (!saved || saved.includes('localhost:5000') || saved === 'http://localhost:5000') {
+      const defaultUrl = getBackendUrl();
+      localStorage.setItem('shieldlink_backend_url', defaultUrl);
+      return defaultUrl;
+    }
+    return saved;
   });
   const [isBackendConnected, setIsBackendConnected] = useState(false);
 

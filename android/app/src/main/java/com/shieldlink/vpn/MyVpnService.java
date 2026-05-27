@@ -11,6 +11,7 @@ import android.content.pm.ServiceInfo;
 import io.nekohasekai.libbox.*;
 
 public class MyVpnService extends VpnService implements PlatformInterface, CommandServerHandler {
+    private static boolean isLibboxInitialized = false;
     private static CommandServer commandServer;
     private ParcelFileDescriptor vpnInterface;
     private volatile boolean isRunning = false;
@@ -84,7 +85,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
         if (isRunning && commandServer != null) {
             L.log("MyVpnService", "Service is already running. Reloading config...");
             try {
-                commandServer.startOrReloadService(configJson, null);
+                commandServer.startOrReloadService(configJson, new OverrideOptions());
                 L.log("MyVpnService", "Config reloaded successfully.");
             } catch (Throwable e) {
                 L.log("MyVpnService", "Throwable caught during config reload", e);
@@ -95,22 +96,34 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
         // Start fresh
         new Thread(() -> {
             try {
-                L.log("MyVpnService", "Setting up SetupOptions for Libbox...");
-                SetupOptions setupOptions = new SetupOptions();
-                String basePath = getFilesDir().getAbsolutePath();
-                setupOptions.setWorkingPath(basePath);
-                setupOptions.setBasePath(basePath);
-                
-                L.log("MyVpnService", "Invoking Libbox.setup with basePath = " + basePath);
-                Libbox.setup(setupOptions);
-                L.log("MyVpnService", "Libbox.setup completed successfully.");
+                if (!isLibboxInitialized) {
+                    L.log("MyVpnService", "Setting up SetupOptions for Libbox...");
+                    SetupOptions setupOptions = new SetupOptions();
+                    String basePath = getFilesDir().getAbsolutePath();
+                    setupOptions.setWorkingPath(basePath);
+                    setupOptions.setBasePath(basePath);
+                    
+                    L.log("MyVpnService", "Invoking Libbox.setup with basePath = " + basePath);
+                    Libbox.setup(setupOptions);
+                    isLibboxInitialized = true;
+                    L.log("MyVpnService", "Libbox.setup completed successfully.");
+                } else {
+                    L.log("MyVpnService", "Libbox is already setup. Skipping setup.");
+                }
+
+                if (commandServer != null) {
+                    L.log("MyVpnService", "Existing CommandServer instance found in background. Closing it first...");
+                    try { commandServer.closeService(); } catch (Throwable ignored) {}
+                    try { commandServer.close(); } catch (Throwable ignored) {}
+                    commandServer = null;
+                }
 
                 L.log("MyVpnService", "Creating CommandServer instance...");
                 commandServer = new CommandServer(MyVpnService.this, MyVpnService.this);
                 L.log("MyVpnService", "Starting CommandServer...");
                 commandServer.start();
                 L.log("MyVpnService", "CommandServer started. Loading configuration...");
-                commandServer.startOrReloadService(configJson, null);
+                commandServer.startOrReloadService(configJson, new OverrideOptions());
                 isRunning = true;
                 L.log("MyVpnService", "CommandServer service started and running.");
             } catch (Throwable e) {
@@ -197,6 +210,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
             // Add IPv6 addresses from TunOptions (returns RoutePrefixIterator)
             L.log("MyVpnService", "Processing inet6 addresses...");
+            boolean hasV6Address = false;
             try {
                 RoutePrefixIterator inet6Iter = options.getInet6Address();
                 if (inet6Iter != null) {
@@ -207,6 +221,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
                         L.log("MyVpnService", "Adding inet6 address: " + address + "/" + prefix);
                         builder.addAddress(address, prefix);
                         hasAddress = true;
+                        hasV6Address = true;
                     }
                 }
             } catch (Throwable e) {
@@ -220,9 +235,24 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             }
 
             // Add default routes
-            L.log("MyVpnService", "Adding default routes (0.0.0.0/0 and ::/0)...");
-            builder.addRoute("0.0.0.0", 0);
-            builder.addRoute("::", 0);
+            L.log("MyVpnService", "Adding default routes...");
+            try {
+                builder.addRoute("0.0.0.0", 0);
+                L.log("MyVpnService", "Default IPv4 route added successfully.");
+            } catch (Throwable e) {
+                L.log("MyVpnService", "Failed to add default IPv4 route", e);
+            }
+
+            if (hasV6Address) {
+                try {
+                    builder.addRoute("::", 0);
+                    L.log("MyVpnService", "Default IPv6 route added successfully.");
+                } catch (Throwable e) {
+                    L.log("MyVpnService", "Failed to add default IPv6 route", e);
+                }
+            } else {
+                L.log("MyVpnService", "Skipping default IPv6 route because no IPv6 address was configured.");
+            }
 
             // Add DNS servers
             L.log("MyVpnService", "Adding DNS servers...");

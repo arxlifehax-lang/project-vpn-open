@@ -6,17 +6,20 @@ import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
+import android.util.Log;
 
 public class L {
     private static final String PUBLIC_DOWNLOAD_PATH = "/storage/emulated/0/Download/vpn_debug_log.txt";
     private static final String APP_PRIVATE_PATH = "/storage/emulated/0/Android/data/com.shieldlink.vpn/files/vpn_debug_log.txt";
 
     public static synchronized void log(String tag, String message) {
+        Log.d(tag, message);
         writeLog(PUBLIC_DOWNLOAD_PATH, tag, message, null);
         writeLog(APP_PRIVATE_PATH, tag, message, null);
     }
 
     public static synchronized void log(String tag, String message, Throwable t) {
+        Log.e(tag, message, t);
         writeLog(PUBLIC_DOWNLOAD_PATH, tag, message, t);
         writeLog(APP_PRIVATE_PATH, tag, message, t);
     }

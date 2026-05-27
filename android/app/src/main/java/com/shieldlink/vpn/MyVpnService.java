@@ -34,7 +34,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
         Notification notification = new NotificationCompat.Builder(this, channelId)
             .setContentTitle("ShieldLink VPN")
             .setContentText("Stealth secure tunnel is active...")
-            .setSmallIcon(android.R.drawable.ic_menu_shield)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .build();
@@ -138,7 +138,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     }
 
     @Override
-    public void sendNotification(Notification notification) throws Exception {}
+    public void sendNotification(io.nekohasekai.libbox.Notification notification) throws Exception {}
 
     @Override
     public void startDefaultInterfaceMonitor(InterfaceUpdateListener listener) throws Exception {}

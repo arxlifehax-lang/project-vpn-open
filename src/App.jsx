@@ -241,6 +241,16 @@ export default function App() {
           }
         }
       } catch (err) {
+        const timestamp = new Date().toLocaleTimeString();
+        const primaryError = err.message || err;
+        
+        // Log the primary failure to the live logs
+        setLogs(old => [
+          ...old,
+          `[${timestamp}] [Warning] Primary connection attempt failed: ${primaryError}`,
+          `[${timestamp}] [System] Initiating local offline fallback config generation...`
+        ]);
+
         // Native fallback if backend server is unreachable
         if (!isConnected) {
           try {
@@ -248,7 +258,6 @@ export default function App() {
             const result = await VpnPlugin.startVpnConnection({ config: configJson });
             if (result.status === 'CONNECTED') {
               setIsConnected(true);
-              const timestamp = new Date().toLocaleTimeString();
               setLogs(old => [
                 ...old,
                 `[${timestamp}] [System] Native VPN Tunnel successfully initialized (Offline Fallback).`,
@@ -257,15 +266,17 @@ export default function App() {
               ]);
             }
           } catch (localErr) {
-            const timestamp = new Date().toLocaleTimeString();
-            setLogs(old => [...old, `[${timestamp}] [Error] Native VPN Local Error: ${localErr.message || localErr}`]);
+            const localErrorMsg = localErr.message || localErr;
+            setLogs(old => [
+              ...old,
+              `[${timestamp}] [Error] Native VPN Local Fallback Failed: ${localErrorMsg}`
+            ]);
           }
         } else {
           try {
             const result = await VpnPlugin.stopVpnConnection();
             if (result.status === 'DISCONNECTED') {
               setIsConnected(false);
-              const timestamp = new Date().toLocaleTimeString();
               setLogs(old => [
                 ...old,
                 `[${timestamp}] [System] Native VPN Tunnel terminated successfully (Offline Fallback).`,
@@ -274,6 +285,11 @@ export default function App() {
             }
           } catch (localErr) {
             setIsConnected(false);
+            const localErrorMsg = localErr.message || localErr;
+            setLogs(old => [
+              ...old,
+              `[${timestamp}] [Error] Native VPN Local Fallback Stop Failed: ${localErrorMsg}`
+            ]);
           }
         }
       }

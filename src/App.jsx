@@ -395,39 +395,23 @@ export default function App() {
             />
           </div>
 
-          {/* Backend URL Input Card */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-light)', padding: '0.4rem 0.8rem', borderRadius: '10px' }}>
+          {/* Sleek Premium Core Health Status Pill */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--border-light)', padding: '0.4rem 1rem', borderRadius: '20px' }}>
             <Server size={14} style={{ color: isBackendConnected ? 'var(--accent-emerald)' : 'var(--accent-red)' }} />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '700', textTransform: 'uppercase', marginRight: '0.25rem' }}>Backend:</span>
-            <input
-              type="text"
-              value={backendUrl}
-              onChange={(e) => {
-                const url = e.target.value;
-                setBackendUrl(url);
-                localStorage.setItem('shieldlink_backend_url', url);
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--text-white)',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                outline: 'none',
-                width: '180px',
-                fontFamily: 'var(--font-mono)'
-              }}
-              placeholder="http://localhost:5000"
-            />
-            {/* Health indicator dot */}
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Shield Core:
+            </span>
             <span style={{
               width: '8px',
               height: '8px',
               borderRadius: '50%',
               background: isBackendConnected ? 'var(--accent-emerald)' : 'var(--accent-red)',
-              boxShadow: isBackendConnected ? '0 0 6px var(--accent-emerald)' : '0 0 6px var(--accent-red)',
+              boxShadow: isBackendConnected ? '0 0 8px var(--accent-emerald)' : '0 0 8px var(--accent-red)',
               display: 'inline-block'
-            }} title={isBackendConnected ? "Backend Reachable" : "Backend Offline"}></span>
+            }}></span>
+            <span style={{ fontSize: '0.75rem', fontWeight: '700', color: isBackendConnected ? 'var(--accent-emerald)' : 'var(--accent-red)', textTransform: 'uppercase' }}>
+              {isBackendConnected ? 'Online' : 'Offline'}
+            </span>
           </div>
         </div>
 

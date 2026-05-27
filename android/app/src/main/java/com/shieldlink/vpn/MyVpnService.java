@@ -7,7 +7,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.os.Build;
-import androidx.core.app.NotificationCompat;
 import android.content.pm.ServiceInfo;
 import io.nekohasekai.libbox.*;
 
@@ -16,33 +15,42 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     private ParcelFileDescriptor vpnInterface;
 
     private void startForegroundServiceHelper() {
-        String channelId = "shieldlink_vpn";
-        String channelName = "ShieldLink VPN Service";
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                channelId,
-                channelName,
-                NotificationManager.IMPORTANCE_LOW
-            );
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
-        }
-        
-        Notification notification = new NotificationCompat.Builder(this, channelId)
-            .setContentTitle("ShieldLink VPN")
-            .setContentText("Stealth secure tunnel is active...")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .build();
+        try {
+            String channelId = "shieldlink_vpn";
+            String channelName = "ShieldLink VPN Service";
             
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else {
-            startForeground(1, notification);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                    channelId,
+                    channelName,
+                    NotificationManager.IMPORTANCE_LOW
+                );
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager != null) {
+                    manager.createNotificationChannel(channel);
+                }
+            }
+            
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(this, channelId);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+            
+            Notification notification = builder
+                .setContentTitle("ShieldLink VPN")
+                .setContentText("Stealth secure tunnel is active...")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .build();
+                
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } else {
+                startForeground(1, notification);
+            }
+        } catch (Throwable e) {
+            e.printStackTrace();
         }
     }
 
@@ -66,7 +74,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             commandServer = new CommandServer(this, this);
             commandServer.start();
             commandServer.startOrReloadService(configJson, null);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             e.printStackTrace();
         }
         
@@ -119,7 +127,16 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
     @Override
     public NetworkInterfaceIterator getInterfaces() throws Exception {
-        return null;
+        return new NetworkInterfaceIterator() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+            @Override
+            public NetworkInterface next() {
+                return null;
+            }
+        };
     }
 
     @Override
@@ -145,7 +162,16 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
     @Override
     public StringIterator systemCertificates() {
-        return null;
+        return new StringIterator() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+            @Override
+            public String next() {
+                return null;
+            }
+        };
     }
 
     @Override

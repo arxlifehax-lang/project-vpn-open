@@ -13,6 +13,8 @@ import androidx.activity.result.ActivityResult;
 @CapacitorPlugin(name = "VpnPlugin")
 public class VpnPlugin extends Plugin {
 
+    private String latestConfig = "";
+
     @PluginMethod()
     public void startVpnConnection(PluginCall call) {
         String config = call.getString("config");
@@ -20,6 +22,7 @@ public class VpnPlugin extends Plugin {
             call.reject("Missing required config JSON string.");
             return;
         }
+        latestConfig = config;
 
         try {
             Intent prepareIntent = VpnService.prepare(getContext());
@@ -38,10 +41,11 @@ public class VpnPlugin extends Plugin {
     @ActivityCallback
     private void vpnPermissionResult(PluginCall call, ActivityResult result) {
         if (result.getResultCode() == android.app.Activity.RESULT_OK) {
-            String config = call.getString("config");
-            executeStartVpn(call, config);
+            executeStartVpn(call, latestConfig);
         } else {
-            call.reject("User cancelled or rejected VPN connection permission request.");
+            if (call != null) {
+                call.reject("User cancelled or rejected VPN connection permission request.");
+            }
         }
     }
 

@@ -17,8 +17,6 @@ const generateLocalUltimateHybrid = (settings) => {
   const serverWgPublic = "R2k28leApEiBTPxRPN33+t70ouAc9lkMP/EiP4eT1Tw=";
   const realityPublic = "XArfuZjeq6vmny_V2n2IqTl6dFOgaYfWsmIdLZwoPws";
   const shortId = "81a4a0dd48b6750a";
-  const ssPasswordMock = "c2hhZG93c29ja3MtcGFzc3dvcmQtbW9jay1iYXNlNjQ=";
-  const trojanPasswordMock = "trojanpasswordmock123";
 
   const config = {
     "log": {
@@ -41,7 +39,7 @@ const generateLocalUltimateHybrid = (settings) => {
         "inet4_address": "172.19.0.1/30",
         "auto_route": true,
         "strict_route": true,
-        "stack": "system",
+        "stack": "gvisor",
         "sniff": true
       }
     ],
@@ -57,37 +55,6 @@ const generateLocalUltimateHybrid = (settings) => {
         "private_key": clientWgPrivate,
         "peer_public_key": serverWgPublic,
         "mtu": 1280,
-        "detour": "ss-out"
-      },
-      {
-        "type": "shadowsocks",
-        "tag": "ss-out",
-        "server": "127.0.0.1",
-        "server_port": 1080,
-        "method": "2022-blake3-aes-256-gcm",
-        "password": ssPasswordMock,
-        "detour": "vmess-out"
-      },
-      {
-        "type": "vmess",
-        "tag": "vmess-out",
-        "server": "127.0.0.1",
-        "server_port": 10000,
-        "uuid": uuid,
-        "security": "aes-128-gcm",
-        "detour": "trojan-out"
-      },
-      {
-        "type": "trojan",
-        "tag": "trojan-out",
-        "server": "127.0.0.1",
-        "server_port": 443,
-        "password": trojanPasswordMock,
-        "tls": {
-          "enabled": true,
-          "server_name": "www.microsoft.com",
-          "insecure": true
-        },
         "detour": "vless-out"
       },
       {
@@ -216,7 +183,7 @@ export default function App() {
           const genData = await genRes.json();
           if (!genData.success) throw new Error("Failed to generate configuration profile.");
 
-          const configJson = genData.configs.ultimateHybrid;
+          const configJson = genData.configs.singboxMobile;
           const result = await VpnPlugin.startVpnConnection({ config: configJson });
           if (result.status === 'CONNECTED') {
             setIsConnected(true);

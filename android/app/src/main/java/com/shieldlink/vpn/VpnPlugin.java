@@ -1,11 +1,14 @@
 package com.shieldlink.vpn;
 
 import android.content.Intent;
+import android.net.VpnService;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.ActivityCallback;
+import androidx.activity.result.ActivityResult;
 
 @CapacitorPlugin(name = "VpnPlugin")
 public class VpnPlugin extends Plugin {
@@ -19,16 +22,44 @@ public class VpnPlugin extends Plugin {
         }
 
         try {
-            // Start the native VpnService background task
+            Intent prepareIntent = VpnService.prepare(getContext());
+            if (prepareIntent != null) {
+                // Request system VPN permission pop-up dialog
+                startActivityForResult(call, prepareIntent, "vpnPermissionResult");
+            } else {
+                // Already authorized, start the VPN directly
+                executeStartVpn(call, config);
+            }
+        } catch (Exception e) {
+            call.reject("Failed to prepare native VPN connection: " + e.getMessage());
+        }
+    }
+
+    @ActivityCallback
+    private void vpnPermissionResult(PluginCall call, ActivityResult result) {
+        if (result.getResultCode() == android.app.Activity.RESULT_OK) {
+            String config = call.getString("config");
+            executeStartVpn(call, config);
+        } else {
+            call.reject("User cancelled or rejected VPN connection permission request.");
+        }
+    }
+
+    private void executeStartVpn(PluginCall call, String config) {
+        try {
             Intent intent = new Intent(getContext(), MyVpnService.class);
             intent.putExtra("config", config);
             getContext().startService(intent);
 
             JSObject ret = new JSObject();
             ret.put("status", "CONNECTED");
-            call.resolve(ret);
+            if (call != null) {
+                call.resolve(ret);
+            }
         } catch (Exception e) {
-            call.reject("Failed to initiate native VPN: " + e.getMessage());
+            if (call != null) {
+                call.reject("Failed to initiate native VPN background service: " + e.getMessage());
+            }
         }
     }
 
@@ -47,3 +78,4 @@ public class VpnPlugin extends Plugin {
         }
     }
 }
+

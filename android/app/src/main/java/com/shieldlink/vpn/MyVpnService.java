@@ -171,6 +171,10 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             public String next() {
                 return null;
             }
+            @Override
+            public long len() {
+                return 0;
+            }
         };
     }
 

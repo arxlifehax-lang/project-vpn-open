@@ -3,14 +3,53 @@ package com.shieldlink.vpn;
 import android.net.VpnService;
 import android.content.Intent;
 import android.os.ParcelFileDescriptor;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.os.Build;
+import androidx.core.app.NotificationCompat;
+import android.content.pm.ServiceInfo;
 import io.nekohasekai.libbox.*;
 
 public class MyVpnService extends VpnService implements PlatformInterface, CommandServerHandler {
     private static CommandServer commandServer;
     private ParcelFileDescriptor vpnInterface;
 
+    private void startForegroundServiceHelper() {
+        String channelId = "shieldlink_vpn";
+        String channelName = "ShieldLink VPN Service";
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                channelId,
+                channelName,
+                NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+        
+        Notification notification = new NotificationCompat.Builder(this, channelId)
+            .setContentTitle("ShieldLink VPN")
+            .setContentText("Stealth secure tunnel is active...")
+            .setSmallIcon(android.R.drawable.ic_menu_shield)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .build();
+            
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
+        } else {
+            startForeground(1, notification);
+        }
+    }
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startForegroundServiceHelper();
+
         if (intent == null) return START_NOT_STICKY;
         
         String configJson = intent.getStringExtra("config");

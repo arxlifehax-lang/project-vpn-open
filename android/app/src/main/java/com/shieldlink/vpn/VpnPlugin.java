@@ -49,7 +49,12 @@ public class VpnPlugin extends Plugin {
         try {
             Intent intent = new Intent(getContext(), MyVpnService.class);
             intent.putExtra("config", config);
-            getContext().startService(intent);
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                getContext().startForegroundService(intent);
+            } else {
+                getContext().startService(intent);
+            }
 
             JSObject ret = new JSObject();
             ret.put("status", "CONNECTED");

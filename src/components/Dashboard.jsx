@@ -51,7 +51,11 @@ export default function Dashboard({ isConnected, onToggle, logs, activeSettings,
         }
 
         if (data.logs) {
-          setLocalLogs(data.logs);
+          setLocalLogs(prev => {
+            // Preserve all unique local client-side logs (like red errors or warnings) that are not in the server logs
+            const localOnlyLogs = prev.filter(line => !data.logs.includes(line));
+            return [...data.logs, ...localOnlyLogs];
+          });
         }
       } catch (err) {
         // Backend offline

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Settings, Activity, Eye, EyeOff, User, Server, Globe } from 'lucide-react';
+import { Shield, Settings, Activity, Eye, EyeOff, User, Server, Globe, Terminal } from 'lucide-react';
 import { registerPlugin } from '@capacitor/core';
 import Dashboard from './components/Dashboard';
 import ConfigGenerator from './components/ConfigGenerator';
@@ -122,6 +122,24 @@ export default function App() {
     return saved;
   });
   const [isBackendConnected, setIsBackendConnected] = useState(false);
+  const [nativeLogs, setNativeLogs] = useState('');
+  const [showNativeLogsModal, setShowNativeLogsModal] = useState(false);
+
+  const handleFetchNativeLogs = async () => {
+    const isNative = window.Capacitor && window.Capacitor.isNative;
+    if (!isNative) {
+      setNativeLogs("Native logs are only available when running on an Android/iOS device.");
+      setShowNativeLogsModal(true);
+      return;
+    }
+    try {
+      const result = await VpnPlugin.getVpnLogs();
+      setNativeLogs(result.logs || "No logs captured yet.");
+    } catch (err) {
+      setNativeLogs("Error reading logs: " + (err.message || err));
+    }
+    setShowNativeLogsModal(true);
+  };
 
   // Poll backend health status
   useEffect(() => {
@@ -462,39 +480,195 @@ export default function App() {
       <footer style={{ marginTop: '2rem', padding: '1rem 0', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
         <span>ShieldLink VPN © 2026. Stealth secure connection.</span>
         
-        <button 
-          onClick={() => {
-            const nextMode = viewMode === 'admin' ? 'client' : 'admin';
-            setViewMode(nextMode);
-            if (nextMode === 'client') setCurrentTab('dashboard');
-          }}
-          style={{
-            background: 'rgba(255,255,255,0.03)',
-            border: '1px solid var(--border-light)',
-            color: 'var(--text-secondary)',
-            padding: '0.4rem 0.8rem',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-            transition: 'all 0.2s ease'
-          }}
-          title="Switch layout view role"
-        >
-          {viewMode === 'admin' ? (
-            <>
-              <Eye size={12} style={{ color: 'var(--accent-cyan)' }} />
-              Switch to Client Mode
-            </>
-          ) : (
-            <>
-              <EyeOff size={12} style={{ color: 'var(--accent-primary)' }} />
-              Switch to Admin Mode
-            </>
-          )}
-        </button>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          <button 
+            onClick={handleFetchNativeLogs}
+            style={{
+              background: 'rgba(6, 182, 212, 0.05)',
+              border: '1px solid rgba(6, 182, 212, 0.2)',
+              color: 'var(--accent-cyan)',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s ease',
+              fontWeight: '600'
+            }}
+            title="Inspect background VPN service and core logs"
+          >
+            <Terminal size={12} />
+            View Debug Logs
+          </button>
+
+          <button 
+            onClick={() => {
+              const nextMode = viewMode === 'admin' ? 'client' : 'admin';
+              setViewMode(nextMode);
+              if (nextMode === 'client') setCurrentTab('dashboard');
+            }}
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-secondary)',
+              padding: '0.4rem 0.8rem',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              transition: 'all 0.2s ease'
+            }}
+            title="Switch layout view role"
+          >
+            {viewMode === 'admin' ? (
+              <>
+                <Eye size={12} style={{ color: 'var(--accent-cyan)' }} />
+                Switch to Client Mode
+              </>
+            ) : (
+              <>
+                <EyeOff size={12} style={{ color: 'var(--accent-primary)' }} />
+                Switch to Admin Mode
+              </>
+            )}
+          </button>
+        </div>
       </footer>
+
+      {showNativeLogsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(10, 15, 30, 0.9)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+          padding: '1.5rem'
+        }}>
+          <div style={{
+            background: '#151c2c',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '650px',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '1.2rem 1.5rem',
+              borderBottom: '1px solid rgba(255,255,255,0.1)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Terminal size={18} style={{ color: '#06b6d4' }} />
+                <h3 style={{ margin: 0, color: '#fff', fontSize: '1.1rem', fontWeight: '700' }}>Native VPN Diagnostics Log</h3>
+              </div>
+              <button 
+                onClick={() => setShowNativeLogsModal(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: 'none',
+                  color: '#94a3b8',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1rem',
+                  fontWeight: 'bold',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ flex: 1, padding: '1.5rem', overflowY: 'auto' }}>
+              <p style={{ margin: '0 0 1rem 0', color: '#94a3b8', fontSize: '0.85rem', lineHeight: '1.4' }}>
+                This console displays the real-time logging output from the Android background VpnService and native sing-box Go Core. Helpful for debugging crashes and configurations.
+              </p>
+              <textarea
+                readOnly
+                value={nativeLogs}
+                style={{
+                  width: '100%',
+                  height: '300px',
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '10px',
+                  padding: '1rem',
+                  color: '#06b6d4',
+                  fontFamily: 'monospace',
+                  fontSize: '0.75rem',
+                  lineHeight: '1.5',
+                  outline: 'none',
+                  resize: 'none',
+                  whiteSpace: 'pre'
+                }}
+              />
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.75rem',
+              padding: '1.2rem 1.5rem',
+              borderTop: '1px solid rgba(255,255,255,0.1)',
+              background: 'rgba(0,0,0,0.15)',
+              borderRadius: '0 0 16px 16px'
+            }}>
+              <button 
+                onClick={handleFetchNativeLogs}
+                style={{
+                  background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+                  border: 'none',
+                  color: '#fff',
+                  padding: '0.5rem 1.2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.85rem',
+                  transition: 'opacity 0.2s ease'
+                }}
+              >
+                Refresh Log
+              </button>
+              <button 
+                onClick={() => setShowNativeLogsModal(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  padding: '0.5rem 1.2rem',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '0.85rem',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

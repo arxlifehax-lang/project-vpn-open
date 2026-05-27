@@ -8,8 +8,7 @@ import './App.css';
 const VpnPlugin = registerPlugin('VpnPlugin');
 
 const getBackendUrl = () => {
-  const hostname = window.location.hostname || 'localhost';
-  return `http://${hostname}:5000`;
+  return "https://project-vpn-open-1.onrender.com";
 };
 
 const generateLocalUltimateHybrid = (settings) => {

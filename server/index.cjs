@@ -311,9 +311,9 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "tag": "tun-in",
         "interface_name": "tun0",
         "inet4_address": "172.19.0.1/30",
-        "auto_route": true,
-        "strict_route": true,
-        "stack": "system",
+        "auto_route": false,
+        "strict_route": false,
+        "stack": "gvisor",
         "sniff": true
       }
     ],
@@ -389,9 +389,9 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "tag": "tun-in",
         "interface_name": "tun0",
         "inet4_address": "172.19.0.1/30",
-        "auto_route": true,
-        "strict_route": true,
-        "stack": "system",
+        "auto_route": false,
+        "strict_route": false,
+        "stack": "gvisor",
         "sniff": true
       }
     ],

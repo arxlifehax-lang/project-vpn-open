@@ -47,6 +47,34 @@ public class L {
         }
     }
 
+    /**
+     * Redirects native stdout (fd 1) and stderr (fd 2) to the log file.
+     * Captures native Go core panics, SIGABRT, and JNI library crashes.
+     */
+    public static synchronized void redirectNativeStdoutStderr(Context context) {
+        if (internalLogPath == null) {
+            init(context);
+        }
+        if (internalLogPath == null) return;
+        try {
+            File logFile = new File(internalLogPath);
+            if (!logFile.exists()) {
+                logFile.createNewFile();
+            }
+            // Open in append mode
+            java.io.FileOutputStream fos = new java.io.FileOutputStream(logFile, true);
+            java.io.FileDescriptor fd = fos.getFD();
+            
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                android.system.Os.dup2(fd, 1);
+                android.system.Os.dup2(fd, 2);
+                Log.d("L", "Successfully redirected native stdout and stderr to " + internalLogPath);
+            }
+        } catch (Throwable e) {
+            Log.e("L", "Failed to redirect native stdout/stderr", e);
+        }
+    }
+
     public static synchronized void log(String tag, String message) {
         Log.d(tag, message);
         String formatted = formatLine(tag, message);
@@ -77,30 +105,42 @@ public class L {
         writeLogWithTrace(APP_PRIVATE_PATH, formatted, t);
     }
 
-    /**
-     * Returns logs for display. Prioritizes:
-     * 1. In-memory buffer (current session, fast)
-     * 2. Internal storage file (survives crashes, always accessible)
-     * 3. External storage file (may need permissions)
-     */
     public static synchronized String getBufferedLogs() {
-        // If memory buffer has content, use it (current session)
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== SYSTEM DIAGNOSTICS ===\n");
+        sb.append("Internal Log Path: ").append(internalLogPath != null ? internalLogPath : "NULL").append("\n");
+        
+        if (internalLogPath != null) {
+            try {
+                File file = new File(internalLogPath);
+                sb.append("Log File Exists: ").append(file.exists()).append("\n");
+                if (file.exists()) {
+                    sb.append("Log File Size: ").append(file.length()).append(" bytes\n");
+                }
+            } catch (Throwable e) {
+                sb.append("Log File Check Error: ").append(e.getMessage()).append("\n");
+            }
+        }
+        
+        // Try reading from file first, because it contains both historical logs (including crashes) and current logs
+        String fileLogs = readLogsFromFile();
+        if (fileLogs != null && !fileLogs.trim().isEmpty()) {
+            sb.append("\n=== RECOVERED LOGS FROM FILE ===\n");
+            sb.append(fileLogs);
+            return sb.toString();
+        }
+        
+        // Fallback to in-memory buffer if file is empty/unavailable
         if (!logBuffer.isEmpty()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("=== CURRENT SESSION LOGS (in-memory) ===\n");
+            sb.append("\n=== IN-MEMORY LOGS (Fallback) ===\n");
             for (String line : logBuffer) {
                 sb.append(line).append("\n");
             }
             return sb.toString();
         }
         
-        // Memory is empty (probably after crash restart) - read from file
-        String fileLogs = readLogsFromFile();
-        if (fileLogs != null && !fileLogs.trim().isEmpty()) {
-            return "=== RECOVERED LOGS FROM FILE (after crash) ===\n" + fileLogs;
-        }
-        
-        return "No logs available.";
+        sb.append("\nNo logs available.");
+        return sb.toString();
     }
 
     /**

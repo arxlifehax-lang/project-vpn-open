@@ -106,6 +106,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     public int onStartCommand(Intent intent, int flags, int startId) {
         // Initialize crash-proof file logger FIRST (before any logging)
         L.init(this);
+        L.redirectNativeStdoutStderr(this);
         L.log("MyVpnService", "onStartCommand invoked. startId = " + startId + ", flags = " + flags);
         startForegroundServiceHelper();
 

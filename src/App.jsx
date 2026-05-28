@@ -86,7 +86,7 @@ const generateLocalUltimateHybrid = (settings) => {
         "network": "tcp",
         "tls": {
           "enabled": true,
-          "server_name": "www.microsoft.com",
+          "server_name": "images.apple.com",
           "utls": {
             "enabled": true,
             "fingerprint": "chrome"
@@ -350,7 +350,7 @@ export default function App() {
             wgClientIp: activeSettings.wgClientIp,
             wgServerIp: '10.8.0.1',
             vlessPort: '443',
-            realityServerName: 'www.microsoft.com'
+            realityServerName: 'images.apple.com'
           })
         }, 15000);
         const genData = await genRes.json();

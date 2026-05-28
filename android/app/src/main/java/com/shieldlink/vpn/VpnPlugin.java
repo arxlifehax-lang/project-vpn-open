@@ -17,6 +17,7 @@ public class VpnPlugin extends Plugin {
 
     @PluginMethod()
     public void startVpnConnection(PluginCall call) {
+        L.init(getContext());
         L.log("VpnPlugin", "startVpnConnection invoked.");
         String config = call.getString("config");
         if (config == null || config.isEmpty()) {
@@ -107,51 +108,23 @@ public class VpnPlugin extends Plugin {
 
     @PluginMethod()
     public void getVpnLogs(PluginCall call) {
-        L.log("VpnPlugin", "getVpnLogs invoked.");
+        // Ensure internal log path is initialized (critical after crash restart)
+        L.init(getContext());
         try {
-            // Primary source: in-memory ring buffer (always available)
-            String bufferedLogs = L.getBufferedLogs();
-            
-            if (bufferedLogs != null && !bufferedLogs.trim().isEmpty()) {
-                JSObject ret = new JSObject();
-                ret.put("logs", bufferedLogs);
-                call.resolve(ret);
-                return;
-            }
-            
-            // Fallback: read from file
-            java.io.File file = new java.io.File("/storage/emulated/0/Android/data/com.shieldlink.vpn/files/vpn_debug_log.txt");
-            if (!file.exists()) {
-                JSObject ret = new JSObject();
-                ret.put("logs", "No logs captured yet. Connect to VPN first.");
-                call.resolve(ret);
-                return;
-            }
-            
-            java.io.BufferedReader br = new java.io.BufferedReader(new java.io.FileReader(file));
-            java.util.List<String> lines = new java.util.ArrayList<>();
-            String line;
-            while ((line = br.readLine()) != null) {
-                lines.add(line);
-            }
-            br.close();
-            
-            int startIdx = Math.max(0, lines.size() - 200);
-            StringBuilder sb = new StringBuilder();
-            for (int i = startIdx; i < lines.size(); i++) {
-                sb.append(lines.get(i)).append("\n");
-            }
+            // L.getBufferedLogs() automatically handles:
+            // - In-memory buffer (current session, fast)
+            // - File-based recovery (after crash, reads from internal storage)
+            String logs = L.getBufferedLogs();
             
             JSObject ret = new JSObject();
-            ret.put("logs", sb.toString());
+            ret.put("logs", logs);
             call.resolve(ret);
         } catch (Throwable e) {
-            L.log("VpnPlugin", "Failed to read logs", e);
-            // Even on failure, try to return in-memory logs
+            // Last resort: try to read from file directly
             try {
-                String fallback = L.getBufferedLogs();
+                String fileLogs = L.readLogsFromFile();
                 JSObject ret = new JSObject();
-                ret.put("logs", fallback.isEmpty() ? "Error reading logs: " + e.getMessage() : fallback);
+                ret.put("logs", fileLogs != null ? fileLogs : "Error reading logs: " + e.getMessage());
                 call.resolve(ret);
             } catch (Throwable e2) {
                 call.reject("Failed to read logs: " + e.getMessage());

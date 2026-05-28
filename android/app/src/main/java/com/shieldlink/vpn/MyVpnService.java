@@ -15,6 +15,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     private static boolean isLibboxInitialized = false;
     private static CommandServer commandServer;
     private ParcelFileDescriptor vpnInterface;
+    private int vpnInterfaceFd = -1;
     private volatile boolean isRunning = false;
     
     private static final String PREFS_NAME = "shieldlink_vpn_prefs";
@@ -239,6 +240,15 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
                 try { vpnInterface.close(); } catch (Throwable ignored) {}
                 vpnInterface = null;
             }
+            if (vpnInterfaceFd != -1) {
+                L.log("MyVpnService", "Explicitly closing vpnInterfaceFd: " + vpnInterfaceFd);
+                try {
+                    ParcelFileDescriptor.adoptFd(vpnInterfaceFd).close();
+                } catch (Throwable e) {
+                    L.log("MyVpnService", "Failed to close vpnInterfaceFd", e);
+                }
+                vpnInterfaceFd = -1;
+            }
         } catch (Throwable e) {
             L.log("MyVpnService", "Exception in cleanupService", e);
         }
@@ -368,6 +378,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             }
             
             int fd = vpnInterface.detachFd();
+            vpnInterfaceFd = fd;
             L.log("MyVpnService", "VPN established successfully! FD = " + fd);
             return fd;
         } catch (Throwable e) {

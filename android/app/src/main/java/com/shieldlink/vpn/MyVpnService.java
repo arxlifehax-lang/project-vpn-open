@@ -12,6 +12,12 @@ import android.content.pm.ServiceInfo;
 import io.nekohasekai.libbox.*;
 
 public class MyVpnService extends VpnService implements PlatformInterface, CommandServerHandler {
+    private static MyVpnService instance = null;
+
+    public static MyVpnService getInstance() {
+        return instance;
+    }
+
     private static boolean isLibboxInitialized = false;
     private static CommandServer commandServer;
     private ParcelFileDescriptor vpnInterface;
@@ -270,10 +276,24 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     }
 
     @Override
+    public void onCreate() {
+        super.onCreate();
+        instance = this;
+        L.log("MyVpnService", "onCreate called. Static instance set.");
+    }
+
+    public void stopVpn() {
+        L.log("MyVpnService", "stopVpn() triggered directly. Initiating cleanup and stopSelf...");
+        cleanupService();
+        stopSelf();
+    }
+
+    @Override
     public void onDestroy() {
         L.log("MyVpnService", "onDestroy invoked.");
         clearSavedConfig();
         cleanupService();
+        instance = null; // Clear static instance reference
         L.log("MyVpnService", "Clean up completed.");
         super.onDestroy();
     }

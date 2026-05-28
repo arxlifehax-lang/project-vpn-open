@@ -92,8 +92,15 @@ public class VpnPlugin extends Plugin {
     public void stopVpnConnection(PluginCall call) {
         L.log("VpnPlugin", "stopVpnConnection invoked.");
         try {
+            MyVpnService service = MyVpnService.getInstance();
+            if (service != null) {
+                L.log("VpnPlugin", "Found active MyVpnService instance. Invoking stopVpn() directly...");
+                service.stopVpn();
+            } else {
+                L.log("VpnPlugin", "No active MyVpnService instance found. Falling back to stopService...");
+            }
+            
             Intent intent = new Intent(getContext(), MyVpnService.class);
-            L.log("VpnPlugin", "Stopping MyVpnService...");
             getContext().stopService(intent);
             L.log("VpnPlugin", "Service stopped successfully.");
 

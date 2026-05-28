@@ -1,0 +1,16 @@
+{
+  "uuid": "455037ea-dc30-4e09-9de3-ee1ae735c36d",
+  "clientWg": {
+    "private": "8JeMczxUJ//ED9s7uiB2an7vvFSVsWha3mNYTTeP0H4=",
+    "public": "rUXE/v+4ib8oOGmzNaA5Qg15UXhJcq7bjWOi3CsR4yw="
+  },
+  "serverWg": {
+    "private": "UPXsh/JLWGbIRTSfrbCxeAby4Vvwu+ynLyJZ1b3nnkg=",
+    "public": "R2k28leApEiBTPxRPN33+t70ouAc9lkMP/EiP4eT1Tw="
+  },
+  "reality": {
+    "private": "KDTi0A_z-5PYGRDkE02rbZ450SHytidJeQl_BbDQUXA",
+    "public": "XArfuZjeq6vmny_V2n2IqTl6dFOgaYfWsmIdLZwoPws"
+  },
+  "shortId": "81a4a0dd48b6750a"
+}

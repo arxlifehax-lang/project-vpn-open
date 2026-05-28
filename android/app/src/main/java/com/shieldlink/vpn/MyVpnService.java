@@ -396,13 +396,13 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             builder.addDnsServer("1.1.1.1");
             builder.addDnsServer("8.8.8.8");
 
-            // Exclude our own app from VPN to prevent routing loops
-            try {
-                builder.addDisallowedApplication(getPackageName());
-                L.log("MyVpnService", "Excluded own package: " + getPackageName());
-            } catch (Throwable e) {
-                L.log("MyVpnService", "Failed to exclude own package", e);
-            }
+            // Exclude our own app from VPN to prevent routing loops (Commented out to allow app E2E connectivity checks over the tunnel)
+            // try {
+            //     builder.addDisallowedApplication(getPackageName());
+            //     L.log("MyVpnService", "Excluded own package: " + getPackageName());
+            // } catch (Throwable e) {
+            //     L.log("MyVpnService", "Failed to exclude own package", e);
+            // }
 
             L.log("MyVpnService", "Calling builder.establish()...");
             vpnInterface = builder.establish();

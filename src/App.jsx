@@ -254,15 +254,12 @@ export default function App() {
     await new Promise(resolve => setTimeout(resolve, 3500));
 
     try {
-      // Fetch cloudflare trace via HTTPS (forces tunnel routing)
-      const res = await fetchWithTimeout('https://cloudflare.com/cdn-cgi/trace', {
+      // Fetch public IP via CORS-enabled endpoint (forces tunnel routing)
+      const res = await fetchWithTimeout('https://api.ipify.org?format=json', {
         headers: { 'Cache-Control': 'no-cache' }
       }, 7000);
-      const text = await res.text();
-      
-      // Parse IP from Cloudflare trace output
-      const ipMatch = text.match(/ip=([0-9a-f.:]+)/i);
-      const ip = ipMatch ? ipMatch[1] : null;
+      const data = await res.json();
+      const ip = data.ip;
 
       const isVpsIp = ip === activeSettings.serverIp;
       
@@ -286,7 +283,7 @@ export default function App() {
           ]);
         }
       } else {
-        throw new Error("Unable to parse public IP from diagnostic trace.");
+        throw new Error("Unable to parse public IP from diagnostic JSON.");
       }
     } catch (err) {
       const errTime = new Date().toLocaleTimeString();

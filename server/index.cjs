@@ -638,7 +638,7 @@ app.post('/api/vps/ping', (req, res) => {
   const startTime = Date.now();
   const socket = new net.Socket();
 
-  socket.setTimeout(2500);
+  socket.setTimeout(6000);
 
   socket.on('connect', () => {
     const latency = Date.now() - startTime;

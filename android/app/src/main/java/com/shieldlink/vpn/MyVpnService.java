@@ -231,11 +231,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     private void cleanupService() {
         L.log("MyVpnService", "cleanupService called.");
         try {
-            if (commandServer != null) {
-                try { commandServer.closeService(); } catch (Throwable ignored) {}
-                try { commandServer.close(); } catch (Throwable ignored) {}
-                commandServer = null;
-            }
+            // 1. Close VPN tunnel interface and FD FIRST to unblock Go core loops and release OS resources instantly
             if (vpnInterface != null) {
                 try { vpnInterface.close(); } catch (Throwable ignored) {}
                 vpnInterface = null;
@@ -248,6 +244,24 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
                     L.log("MyVpnService", "Failed to close vpnInterfaceFd", e);
                 }
                 vpnInterfaceFd = -1;
+            }
+
+            // 2. Stop foreground notification immediately to dismiss the notification
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    stopForeground(STOP_FOREGROUND_REMOVE);
+                } else {
+                    stopForeground(true);
+                }
+            } catch (Throwable e) {
+                L.log("MyVpnService", "Failed to stopForeground", e);
+            }
+
+            // 3. Now safely close Go services (won't block because FD is already closed and loops exited)
+            if (commandServer != null) {
+                try { commandServer.closeService(); } catch (Throwable ignored) {}
+                try { commandServer.close(); } catch (Throwable ignored) {}
+                commandServer = null;
             }
         } catch (Throwable e) {
             L.log("MyVpnService", "Exception in cleanupService", e);

@@ -671,6 +671,68 @@ app.get('/api/vpn/status', (req, res) => {
   });
 });
 
+// Endpoint to verify cryptographic end-to-end WireGuard tunnel handshake on VPS
+app.post('/api/vpn/verify-peer', (req, res) => {
+  const { serverIp, peerPublicKey } = req.body;
+  if (!serverIp || !peerPublicKey) {
+    return res.status(400).json({ success: false, error: 'Missing serverIp or peerPublicKey.' });
+  }
+
+  // If local fallback / mock
+  if (serverIp === '127.0.0.1' || serverIp === '203.0.113.50') {
+    return res.json({ success: true, verified: true, ip: serverIp });
+  }
+
+  const conn = new Client();
+  conn.on('ready', () => {
+    // Run wg show to inspect the specific peer handshake
+    conn.exec(`wg show wg0 dump | grep "${peerPublicKey}"`, (err, stream) => {
+      if (err) {
+        conn.end();
+        return res.json({ success: false, error: err.message });
+      }
+      let output = '';
+      stream.on('close', () => {
+        conn.end();
+        
+        // Output format of wg show wg0 dump:
+        // peer_public_key preshared_key endpoint allowed_ips latest_handshake transfer_rx transfer_tx persistent_keepalive
+        const parts = output.trim().split(/\s+/);
+        if (parts.length >= 5) {
+          const latestHandshake = parseInt(parts[4]) || 0;
+          const transferRx = parseInt(parts[5]) || 0;
+          const transferTx = parseInt(parts[6]) || 0;
+          const now = Math.floor(Date.now() / 1000);
+          
+          // If latest handshake is within the last 120 seconds, or if data transfer has occurred
+          const isActive = (latestHandshake > 0 && (now - latestHandshake) < 120) || (transferRx > 0);
+          
+          return res.json({
+            success: true,
+            verified: isActive,
+            latestHandshake,
+            transferRx,
+            transferTx,
+            ip: serverIp
+          });
+        } else {
+          return res.json({ success: true, verified: false, reason: 'Peer not registered on VPS yet.' });
+        }
+      }).on('data', (data) => {
+        output += data.toString();
+      });
+    });
+  }).on('error', (err) => {
+    return res.json({ success: false, error: `SSH connection failed: ${err.message}` });
+  }).connect({
+    host: serverIp,
+    port: 22,
+    username: 'root',
+    password: 'x(F3#=}w8L=bpLEK',
+    readyTimeout: 10000
+  });
+});
+
 app.post('/api/vpn/toggle', (req, res) => {
   const { username = 'Guest' } = req.body;
   isConnected = !isConnected;

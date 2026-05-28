@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Power, ArrowDown, ArrowUp, Activity, Terminal, Shield, RefreshCw, Server, MapPin } from 'lucide-react';
 import TunnelVisual from './TunnelVisual';
 
-export default function Dashboard({ isConnected, onToggle, logs, activeSettings, viewMode = 'admin', username = 'Guest', backendUrl }) {
+export default function Dashboard({ isConnected, onToggle, logs, activeSettings, viewMode = 'admin', username = 'Guest', backendUrl, connectionCheckStatus = 'idle', resolvedIp = '' }) {
   const [downloadSpeed, setDownloadSpeed] = useState('0.0 Mbps');
   const [uploadSpeed, setUploadSpeed] = useState('0.0 Mbps');
   const [latency, setLatency] = useState('-- ms');
@@ -242,11 +242,45 @@ export default function Dashboard({ isConnected, onToggle, logs, activeSettings,
             >
               <Power size={48} />
             </button>
-            <div className="connection-status-text" style={{ marginTop: '1.5rem' }}>
+            <div className="connection-status-text" style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div className="status-label" style={{ letterSpacing: '2px', fontSize: '0.8rem' }}>SECURE SHIELD</div>
               <div className={`status-value ${isConnected ? 'connected' : 'disconnected'}`} style={{ fontSize: '1.8rem', marginTop: '0.4rem' }}>
                 {isConnected ? 'PROTECTED' : !isServerOnline ? 'OFFLINE' : 'UNPROTECTED'}
               </div>
+
+              {/* E2E Verification Diagnostic Badge */}
+              {isConnected && (
+                <div style={{
+                  marginTop: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  padding: '0.4rem 1rem',
+                  borderRadius: '20px',
+                  background: connectionCheckStatus === 'success' ? 'rgba(16, 185, 129, 0.08)' : connectionCheckStatus === 'failed' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(6, 182, 212, 0.08)',
+                  border: connectionCheckStatus === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : connectionCheckStatus === 'failed' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(6, 182, 212, 0.2)',
+                  color: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'var(--accent-cyan)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <span style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    background: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'var(--accent-cyan)',
+                    boxShadow: connectionCheckStatus === 'success' ? '0 0 8px var(--accent-emerald)' : connectionCheckStatus === 'failed' ? '0 0 8px var(--accent-red)' : '0 0 8px var(--accent-cyan)',
+                    display: 'inline-block',
+                    animation: connectionCheckStatus === 'checking' ? 'pulse-glow 1s infinite' : 'none'
+                  }}></span>
+                  <span>
+                    {connectionCheckStatus === 'checking' && "Verifying Tunnel Routing..."}
+                    {connectionCheckStatus === 'success' && `VPS Connected 🇿🇦 (${resolvedIp})`}
+                    {connectionCheckStatus === 'failed' && "Routing Failed: No VPS Signal"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -384,9 +418,12 @@ export default function Dashboard({ isConnected, onToggle, logs, activeSettings,
           </div>
           <div className="status-card">
             <div className="status-card-header">Target VPS Egress</div>
-            <div className="status-card-body">
-              <span className={`status-dot ${isConnected && isServerOnline ? 'active' : ''}`}></span>
-              {activeSettings?.serverIp || '139.84.234.151'}
+            <div className="status-card-body" style={{ color: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'checking' ? 'var(--accent-cyan)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'inherit' }}>
+              <span className={`status-dot ${isConnected && isServerOnline ? 'active' : ''}`} style={{
+                background: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'checking' ? 'var(--accent-cyan)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'inherit',
+                boxShadow: connectionCheckStatus === 'success' ? '0 0 6px var(--accent-emerald)' : 'none'
+              }}></span>
+              {connectionCheckStatus === 'success' ? `${resolvedIp} [VERIFIED 🇿🇦]` : connectionCheckStatus === 'checking' ? `${activeSettings?.serverIp} [VERIFYING...]` : connectionCheckStatus === 'failed' ? `${activeSettings?.serverIp} [BLOCKED]` : (activeSettings?.serverIp || '139.84.234.151')}
             </div>
           </div>
         </div>
@@ -436,6 +473,38 @@ export default function Dashboard({ isConnected, onToggle, logs, activeSettings,
               <div className={`status-value ${isConnected ? 'connected' : 'disconnected'}`}>
                 {isConnected ? 'CONNECTED' : !isServerOnline ? 'OFFLINE' : 'DISCONNECTED'}
               </div>
+              
+              {/* E2E Verification Diagnostic Badge */}
+              {isConnected && (
+                <div style={{
+                  marginTop: '0.4rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.7rem',
+                  fontWeight: '600',
+                  padding: '0.2rem 0.6rem',
+                  borderRadius: '10px',
+                  background: connectionCheckStatus === 'success' ? 'rgba(16, 185, 129, 0.08)' : connectionCheckStatus === 'failed' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(6, 182, 212, 0.08)',
+                  border: connectionCheckStatus === 'success' ? '1px solid rgba(16, 185, 129, 0.2)' : connectionCheckStatus === 'failed' ? '1px solid rgba(239, 68, 68, 0.2)' : '1px solid rgba(6, 182, 212, 0.2)',
+                  color: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'var(--accent-cyan)',
+                  transition: 'all 0.3s ease'
+                }}>
+                  <span style={{
+                    width: '5px',
+                    height: '5px',
+                    borderRadius: '50%',
+                    background: connectionCheckStatus === 'success' ? 'var(--accent-emerald)' : connectionCheckStatus === 'failed' ? 'var(--accent-red)' : 'var(--accent-cyan)',
+                    boxShadow: connectionCheckStatus === 'success' ? '0 0 6px var(--accent-emerald)' : 'none',
+                    display: 'inline-block'
+                  }}></span>
+                  <span>
+                    {connectionCheckStatus === 'checking' && "Verifying Tunnel Routing..."}
+                    {connectionCheckStatus === 'success' && `E2E Verified: VPS 🇿🇦 (${resolvedIp})`}
+                    {connectionCheckStatus === 'failed' && "Routing Failed: No VPS Signal"}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

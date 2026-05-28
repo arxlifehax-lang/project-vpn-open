@@ -104,11 +104,40 @@ setInterval(pollNetworkStats, 3000);
 // Endpoint to generate configurations dynamically with secure keys and ChaCha20-Poly1305
 app.post('/api/config/generate', (req, res) => {
   const data = req.body;
-  const keys = generateKeys();
-  const ssPassword = require('crypto').randomBytes(32).toString('base64');
-  const trojanPassword = require('crypto').randomBytes(16).toString('hex');
-
   const serverIp = data.serverIp || '139.84.234.151';
+
+  // Persistence path for keys to match VPS deployments
+  const keysDir = path.join(__dirname, 'data');
+  if (!fs.existsSync(keysDir)) {
+    try { fs.mkdirSync(keysDir, { recursive: true }); } catch (ignored) {}
+  }
+  const keysPath = path.join(keysDir, `keys_${serverIp.replace(/\./g, '_')}.json`);
+
+  let keys = null;
+  if (fs.existsSync(keysPath)) {
+    try {
+      keys = JSON.parse(fs.readFileSync(keysPath, 'utf8'));
+      console.log(`[ShieldLink] Loaded persistent keys for ${serverIp} from ${keysPath}`);
+    } catch (e) {
+      console.error('[ShieldLink] Failed to read persistent keys', e);
+    }
+  }
+
+  if (!keys) {
+    keys = generateKeys();
+    keys.ssPassword = require('crypto').randomBytes(32).toString('base64');
+    keys.trojanPassword = require('crypto').randomBytes(16).toString('hex');
+    try {
+      fs.writeFileSync(keysPath, JSON.stringify(keys, null, 2), 'utf8');
+      console.log(`[ShieldLink] Generated and saved new persistent keys for ${serverIp} to ${keysPath}`);
+    } catch (e) {
+      console.error('[ShieldLink] Failed to save persistent keys', e);
+    }
+  }
+
+  const ssPassword = keys.ssPassword || require('crypto').randomBytes(32).toString('base64');
+  const trojanPassword = keys.trojanPassword || require('crypto').randomBytes(16).toString('hex');
+
   const wgPort = parseInt(data.wgPort) || 51820;
   const wgClientIp = data.wgClientIp || '10.8.0.2';
   const wgServerIp = data.wgServerIp || '10.8.0.1';

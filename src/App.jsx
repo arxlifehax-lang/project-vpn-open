@@ -292,6 +292,9 @@ export default function App() {
         if (genData.success && genData.configs && genData.configs.singboxMobile) {
           configJson = genData.configs.singboxMobile;
           configSource = 'backend';
+          try {
+            localStorage.setItem('shieldlink_last_backend_config', configJson);
+          } catch (e) {}
           setLogs(old => [
             ...old,
             `[${timestamp}] [System] Configuration received from backend (with server-matched keys).`
@@ -304,25 +307,35 @@ export default function App() {
         setLogs(old => [
           ...old,
           `[${timestamp}] [Warning] Backend config fetch failed: ${errMsg}`,
-          `[${timestamp}] [System] Falling back to local offline configuration...`
+          `[${timestamp}] [System] Attempting recovery from last successful cached configuration...`
         ]);
       }
 
-      // Step 2: Fallback to local hardcoded config if backend fetch failed
+      // Step 2: Fallback to last successful backend config, or local hardcoded config
       if (!configJson) {
-        try {
-          configJson = generateLocalUltimateHybrid(activeSettings);
-          configSource = 'local-fallback';
+        const cachedConfig = localStorage.getItem('shieldlink_last_backend_config');
+        if (cachedConfig) {
+          configJson = cachedConfig;
+          configSource = 'cached-backend';
           setLogs(old => [
             ...old,
-            `[${timestamp}] [System] Using local fallback config (hardcoded keys - may not match server).`
+            `[${timestamp}] [System] Recovered last successful configuration from cache (keys match server).`
           ]);
-        } catch (localErr) {
-          setLogs(old => [
-            ...old,
-            `[${timestamp}] [Error] Failed to generate local config: ${localErr.message || localErr}`
-          ]);
-          return;
+        } else {
+          try {
+            configJson = generateLocalUltimateHybrid(activeSettings);
+            configSource = 'local-fallback';
+            setLogs(old => [
+              ...old,
+              `[${timestamp}] [System] Using local fallback config (hardcoded keys - may not match server).`
+            ]);
+          } catch (localErr) {
+            setLogs(old => [
+              ...old,
+              `[${timestamp}] [Error] Failed to generate local config: ${localErr.message || localErr}`
+            ]);
+            return;
+          }
         }
       }
 

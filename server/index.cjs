@@ -328,9 +328,14 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
     "dns": {
       "servers": [
         {
-          "tag": "dns-direct",
+          "tag": "dns-remote",
           "address": "1.1.1.1",
-          "detour": "direct"
+          "detour": "wg-out"
+        },
+        {
+          "tag": "dns-backup",
+          "address": "8.8.8.8",
+          "detour": "wg-out"
         }
       ]
     },
@@ -410,9 +415,14 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
     "dns": {
       "servers": [
         {
-          "tag": "dns-direct",
+          "tag": "dns-remote",
           "address": "1.1.1.1",
-          "detour": "direct"
+          "detour": "wg-out"
+        },
+        {
+          "tag": "dns-backup",
+          "address": "8.8.8.8",
+          "detour": "wg-out"
         }
       ]
     },

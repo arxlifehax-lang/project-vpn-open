@@ -363,6 +363,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "private_key": keys.clientWg.private,
         "peer_public_key": keys.serverWg.public,
         "mtu": 1280,
+        "persistent_keepalive": 15,
         "detour": "vless-out"
       },
       {
@@ -450,6 +451,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "private_key": keys.clientWg.private,
         "peer_public_key": keys.serverWg.public,
         "mtu": 1280,
+        "persistent_keepalive": 15,
         "detour": "ss-out"
       },
       {

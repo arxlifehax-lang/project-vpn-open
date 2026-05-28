@@ -74,6 +74,7 @@ const generateLocalUltimateHybrid = (settings) => {
         "private_key": clientWgPrivate,
         "peer_public_key": serverWgPublic,
         "mtu": 1280,
+        "persistent_keepalive": 15,
         "detour": "vless-out"
       },
       {

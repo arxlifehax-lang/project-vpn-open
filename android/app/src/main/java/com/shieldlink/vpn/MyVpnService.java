@@ -407,7 +407,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
     @Override
     public ConnectionOwner findConnectionOwner(int ipVersion, String srcIp, int srcPort, String destIp, int destPort) throws Exception {
-        return null;
+        return new ConnectionOwner();
     }
 
     @Override

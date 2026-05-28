@@ -53,7 +53,7 @@ const generateLocalUltimateHybrid = (settings) => {
         "inet4_address": "172.19.0.1/30",
         "auto_route": false,
         "strict_route": false,
-        "stack": "gvisor",
+        "stack": "system",
         "sniff": true
       }
     ],
@@ -96,6 +96,10 @@ const generateLocalUltimateHybrid = (settings) => {
       {
         "type": "direct",
         "tag": "direct"
+      },
+      {
+        "type": "dns",
+        "tag": "dns-out"
       }
     ],
     "route": {
@@ -103,7 +107,7 @@ const generateLocalUltimateHybrid = (settings) => {
       "rules": [
         {
           "port": [53],
-          "outbound": "dns-direct"
+          "outbound": "dns-out"
         }
       ]
     }

@@ -313,7 +313,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "inet4_address": "172.19.0.1/30",
         "auto_route": false,
         "strict_route": false,
-        "stack": "gvisor",
+        "stack": "system",
         "sniff": true
       }
     ],
@@ -356,6 +356,10 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
       {
         "type": "direct",
         "tag": "direct"
+      },
+      {
+        "type": "dns",
+        "tag": "dns-out"
       }
     ],
     "route": {
@@ -363,7 +367,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
       "rules": [
         {
           "port": [53],
-          "outbound": "dns-direct"
+          "outbound": "dns-out"
         }
       ]
     }
@@ -391,7 +395,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "inet4_address": "172.19.0.1/30",
         "auto_route": false,
         "strict_route": false,
-        "stack": "gvisor",
+        "stack": "system",
         "sniff": true
       }
     ],
@@ -465,6 +469,10 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
       {
         "type": "direct",
         "tag": "direct"
+      },
+      {
+        "type": "dns",
+        "tag": "dns-out"
       }
     ],
     "route": {
@@ -472,7 +480,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
       "rules": [
         {
           "port": [53],
-          "outbound": "dns-direct"
+          "outbound": "dns-out"
         }
       ]
     }

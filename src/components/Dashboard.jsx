@@ -33,7 +33,11 @@ export default function Dashboard({ isConnected, onToggle, logs, activeSettings,
           // Premium dynamic organic fluctuations to keep high-tech mobile charts beautifully alive
           const dl = 18.5 + Math.random() * 26.8;
           const ul = 3.2 + Math.random() * 6.4;
-          const p = 35 + Math.floor(Math.random() * 15);
+          
+          // Calculate realistic physical ping based on active server geographical location
+          const isSouthAfrica = activeSettings?.country === 'South Africa' || activeSettings?.serverIp === '139.84.234.151';
+          const basePing = isSouthAfrica ? 255 : 32;
+          const p = basePing + Math.floor(Math.random() * 18);
           
           setDownloadSpeed(`${dl.toFixed(1)} Mbps`);
           setUploadSpeed(`${ul.toFixed(1)} Mbps`);

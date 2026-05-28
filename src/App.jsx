@@ -293,7 +293,7 @@ export default function App() {
       // Fetch public IP via CORS-enabled endpoint (forces tunnel routing)
       const res = await fetchWithTimeout('https://api.ipify.org?format=json', {
         headers: { 'Cache-Control': 'no-cache' }
-      }, 7000);
+      }, 12000);
       const data = await res.json();
       const ip = data.ip;
 

@@ -11,6 +11,20 @@ const getBackendUrl = () => {
   return "https://project-vpn-open-1.onrender.com";
 };
 
+// Fetch with timeout helper
+const fetchWithTimeout = async (url, options, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+};
+
 const generateLocalUltimateHybrid = (settings) => {
   const uuid = "455037ea-dc30-4e09-9de3-ee1ae735c36d";
   const clientWgPrivate = "8JeMczxUJ//ED9s7uiB2an7vvFSVsWha3mNYTTeP0H4=";
@@ -20,7 +34,7 @@ const generateLocalUltimateHybrid = (settings) => {
 
   const config = {
     "log": {
-      "level": "warning"
+      "level": "debug"
     },
     "dns": {
       "servers": [
@@ -37,8 +51,8 @@ const generateLocalUltimateHybrid = (settings) => {
         "tag": "tun-in",
         "interface_name": "tun0",
         "inet4_address": "172.19.0.1/30",
-        "auto_route": true,
-        "strict_route": true,
+        "auto_route": false,
+        "strict_route": false,
         "stack": "gvisor",
         "sniff": true
       }
@@ -103,6 +117,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('admin'); // 'admin' or 'client'
   const [username, setUsername] = useState('Administrator');
   const [isConnected, setIsConnected] = useState(false);
+  const [vpnHealthRef] = useState({ current: null }); // Holds health check interval ID
   const [activeSettings, setActiveSettings] = useState({
     serverIp: '139.84.234.151',
     wgPort: '51820',
@@ -176,107 +191,156 @@ export default function App() {
     }
   }, [viewMode]);
 
-  // Handle connection toggle (supporting backend API with local mock fallback)
+  // Stop the VPN health monitor
+  const stopVpnHealthMonitor = () => {
+    if (vpnHealthRef.current) {
+      clearInterval(vpnHealthRef.current);
+      vpnHealthRef.current = null;
+    }
+  };
+
+  // Start a VPN health monitor that checks if the native service is still alive
+  const startVpnHealthMonitor = () => {
+    stopVpnHealthMonitor();
+    let consecutiveFailures = 0;
+    vpnHealthRef.current = setInterval(async () => {
+      try {
+        const logResult = await VpnPlugin.getVpnLogs();
+        const logText = logResult.logs || '';
+        // Check for fatal crash indicators in the log
+        const hasFatalError = /(?:fatal|panic|SIGABRT|signal \d+|process crash|died|stopped unexpectedly)/i.test(logText);
+        if (hasFatalError) {
+          consecutiveFailures++;
+        } else {
+          consecutiveFailures = 0;
+        }
+        if (consecutiveFailures >= 2) {
+          const timestamp = new Date().toLocaleTimeString();
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [Error] VPN service crash detected. Cleaning up...`
+          ]);
+          try { await VpnPlugin.stopVpnConnection(); } catch (_) {}
+          setIsConnected(false);
+          stopVpnHealthMonitor();
+        }
+      } catch (_) {
+        // getVpnLogs itself failed - service might be dead
+      }
+    }, 5000);
+  };
+
   // Handle connection toggle (supporting backend API with local mock fallback)
   const handleToggle = async () => {
     // Check if running natively inside mobile app container
     const isNative = window.Capacitor && window.Capacitor.isNative;
 
     if (isNative) {
-      try {
-        if (!isConnected) {
-          const apiBaseUrl = activeSettings.serverIp === '139.84.234.151' ? `http://${activeSettings.serverIp}:5000` : backendUrl;
-          const genRes = await fetch(`${apiBaseUrl}/api/config/generate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              serverIp: activeSettings.serverIp,
-              wgPort: activeSettings.wgPort,
-              wgClientIp: activeSettings.wgClientIp,
-              wgServerIp: '10.8.0.1',
-              vlessPort: '443',
-              realityServerName: 'www.microsoft.com'
-            })
-          });
-          const genData = await genRes.json();
-          if (!genData.success) throw new Error("Failed to generate configuration profile.");
+      const timestamp = new Date().toLocaleTimeString();
 
-          const configJson = genData.configs.singboxMobile;
-          const result = await VpnPlugin.startVpnConnection({ config: configJson });
-          if (result.status === 'CONNECTED') {
-            setIsConnected(true);
-            const timestamp = new Date().toLocaleTimeString();
-            setLogs(old => [
-              ...old,
-              `[${timestamp}] [System] Native VPN Tunnel successfully initialized.`,
-              `[${timestamp}] [System] Android VpnService interface created (VPN Key icon active).`,
-              `[${timestamp}] [System] Routing 100% of mobile system traffic through secure VLESS tunnel.`
-            ]);
-          }
-        } else {
+      if (isConnected) {
+        // --- DISCONNECT ---
+        try {
+          stopVpnHealthMonitor();
           const result = await VpnPlugin.stopVpnConnection();
           if (result.status === 'DISCONNECTED') {
             setIsConnected(false);
-            const timestamp = new Date().toLocaleTimeString();
             setLogs(old => [
               ...old,
               `[${timestamp}] [System] Native VPN Tunnel terminated successfully.`,
               `[${timestamp}] [System] Android VpnService interface destroyed.`
             ]);
           }
+        } catch (err) {
+          setIsConnected(false);
+          stopVpnHealthMonitor();
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [Error] VPN stop error: ${err.message || err}`
+          ]);
         }
-      } catch (err) {
-        const timestamp = new Date().toLocaleTimeString();
-        const primaryError = err.message || err;
-        
-        // Log the primary failure to the live logs
+        return;
+      }
+
+      // --- CONNECT ---
+      let configJson = null;
+      let configSource = 'none';
+
+      // Step 1: Try to get config from Render backend (always use backendUrl, NOT the VPS IP)
+      setLogs(old => [
+        ...old,
+        `[${timestamp}] [System] Fetching configuration from backend server...`
+      ]);
+      try {
+        const genRes = await fetchWithTimeout(`${backendUrl}/api/config/generate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            serverIp: activeSettings.serverIp,
+            wgPort: activeSettings.wgPort,
+            wgClientIp: activeSettings.wgClientIp,
+            wgServerIp: '10.8.0.1',
+            vlessPort: '443',
+            realityServerName: 'www.microsoft.com'
+          })
+        }, 15000);
+        const genData = await genRes.json();
+        if (genData.success && genData.configs && genData.configs.singboxMobile) {
+          configJson = genData.configs.singboxMobile;
+          configSource = 'backend';
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [System] Configuration received from backend (with server-matched keys).`
+          ]);
+        } else {
+          throw new Error(genData.error || 'Backend returned invalid config response.');
+        }
+      } catch (fetchErr) {
+        const errMsg = fetchErr.name === 'AbortError' ? 'Request timed out (15s)' : (fetchErr.message || fetchErr);
         setLogs(old => [
           ...old,
-          `[${timestamp}] [Warning] Primary connection attempt failed: ${primaryError}`,
-          `[${timestamp}] [System] Initiating local offline fallback config generation...`
+          `[${timestamp}] [Warning] Backend config fetch failed: ${errMsg}`,
+          `[${timestamp}] [System] Falling back to local offline configuration...`
         ]);
+      }
 
-        // Native fallback if backend server is unreachable
-        if (!isConnected) {
-          try {
-            const configJson = generateLocalUltimateHybrid(activeSettings);
-            const result = await VpnPlugin.startVpnConnection({ config: configJson });
-            if (result.status === 'CONNECTED') {
-              setIsConnected(true);
-              setLogs(old => [
-                ...old,
-                `[${timestamp}] [System] Native VPN Tunnel successfully initialized (Offline Fallback).`,
-                `[${timestamp}] [System] Android VpnService interface created (VPN Key icon active).`,
-                `[${timestamp}] [System] Routing 100% of mobile system traffic through secure VLESS tunnel.`
-              ]);
-            }
-          } catch (localErr) {
-            const localErrorMsg = localErr.message || localErr;
-            setLogs(old => [
-              ...old,
-              `[${timestamp}] [Error] Native VPN Local Fallback Failed: ${localErrorMsg}`
-            ]);
-          }
-        } else {
-          try {
-            const result = await VpnPlugin.stopVpnConnection();
-            if (result.status === 'DISCONNECTED') {
-              setIsConnected(false);
-              setLogs(old => [
-                ...old,
-                `[${timestamp}] [System] Native VPN Tunnel terminated successfully (Offline Fallback).`,
-                `[${timestamp}] [System] Android VpnService interface destroyed.`
-              ]);
-            }
-          } catch (localErr) {
-            setIsConnected(false);
-            const localErrorMsg = localErr.message || localErr;
-            setLogs(old => [
-              ...old,
-              `[${timestamp}] [Error] Native VPN Local Fallback Stop Failed: ${localErrorMsg}`
-            ]);
-          }
+      // Step 2: Fallback to local hardcoded config if backend fetch failed
+      if (!configJson) {
+        try {
+          configJson = generateLocalUltimateHybrid(activeSettings);
+          configSource = 'local-fallback';
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [System] Using local fallback config (hardcoded keys - may not match server).`
+          ]);
+        } catch (localErr) {
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [Error] Failed to generate local config: ${localErr.message || localErr}`
+          ]);
+          return;
         }
+      }
+
+      // Step 3: Start the native VPN service
+      try {
+        const result = await VpnPlugin.startVpnConnection({ config: configJson });
+        if (result.status === 'CONNECTED') {
+          setIsConnected(true);
+          startVpnHealthMonitor();
+          setLogs(old => [
+            ...old,
+            `[${timestamp}] [System] Native VPN Tunnel initialized (source: ${configSource}).`,
+            `[${timestamp}] [System] Android VpnService interface created (VPN Key icon active).`,
+            `[${timestamp}] [System] Routing mobile traffic through secure VLESS tunnel.`,
+            `[${timestamp}] [System] Health monitor started - checking service every 5s.`
+          ]);
+        }
+      } catch (vpnErr) {
+        setLogs(old => [
+          ...old,
+          `[${timestamp}] [Error] Native VPN start failed: ${vpnErr.message || vpnErr}`
+        ]);
       }
       return;
     }

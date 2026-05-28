@@ -94,7 +94,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
         }
 
         // Start fresh
-        new Thread(() -> {
+        Thread vpnThread = new Thread(() -> {
             try {
                 if (!isLibboxInitialized) {
                     L.log("MyVpnService", "Setting up SetupOptions for Libbox...");
@@ -120,17 +120,44 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
                 L.log("MyVpnService", "Creating CommandServer instance...");
                 commandServer = new CommandServer(MyVpnService.this, MyVpnService.this);
+                
                 L.log("MyVpnService", "Starting CommandServer...");
-                commandServer.start();
-                L.log("MyVpnService", "CommandServer started. Loading configuration...");
-                commandServer.startOrReloadService(configJson, new OverrideOptions());
-                isRunning = true;
-                L.log("MyVpnService", "CommandServer service started and running.");
+                try {
+                    commandServer.start();
+                    L.log("MyVpnService", "CommandServer started successfully.");
+                } catch (Throwable startErr) {
+                    L.log("MyVpnService", "CommandServer.start() failed", startErr);
+                    cleanupService();
+                    stopSelf();
+                    return;
+                }
+
+                L.log("MyVpnService", "Loading sing-box configuration into CommandServer...");
+                try {
+                    commandServer.startOrReloadService(configJson, new OverrideOptions());
+                    isRunning = true;
+                    L.log("MyVpnService", "CommandServer service started and running.");
+                } catch (Throwable configErr) {
+                    L.log("MyVpnService", "startOrReloadService failed (bad config or Go core panic)", configErr);
+                    cleanupService();
+                    stopSelf();
+                    return;
+                }
             } catch (Throwable e) {
                 L.log("MyVpnService", "Throwable caught in onStartCommand background thread", e);
                 cleanupService();
+                stopSelf();
             }
-        }, "VpnServiceInit").start();
+        }, "VpnServiceInit");
+        
+        // Install crash handler so Go core panics don't kill the app
+        vpnThread.setUncaughtExceptionHandler((thread, ex) -> {
+            L.log("MyVpnService", "FATAL: Uncaught exception in VPN thread '" + thread.getName() + "'", ex);
+            cleanupService();
+            try { stopSelf(); } catch (Throwable ignored) {}
+        });
+        
+        vpnThread.start();
         
         return START_STICKY;
     }

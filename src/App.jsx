@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Shield, Settings, Activity, Eye, EyeOff, User, Server, Globe, Terminal } from 'lucide-react';
 import { registerPlugin } from '@capacitor/core';
 import Dashboard from './components/Dashboard';
@@ -129,6 +129,7 @@ export default function App() {
   const [connectionCheckStatus, setConnectionCheckStatus] = useState('idle'); // 'idle' | 'checking' | 'success' | 'failed'
   const [resolvedIp, setResolvedIp] = useState('');
   const [vpnHealthRef] = useState({ current: null }); // Holds health check interval ID
+  const lastProcessedLogCountRef = useRef(0);
   const [activeSettings, setActiveSettings] = useState({
     serverIp: '139.84.234.151',
     wgPort: '51820',
@@ -218,7 +219,42 @@ export default function App() {
       try {
         const logResult = await VpnPlugin.getVpnLogs();
         const logText = logResult.logs || '';
-        // Check for fatal crash indicators in the log
+        
+        // 1. Process and stream native logs in real-time
+        const lines = logText.split('\n').map(l => l.trim()).filter(Boolean);
+        const lastCount = lastProcessedLogCountRef.current || 0;
+        if (lines.length > lastCount) {
+          const newLines = lines.slice(lastCount);
+          lastProcessedLogCountRef.current = lines.length;
+          
+          const processedLogs = [];
+          newLines.forEach(line => {
+            // Check for interesting events, status updates, or failures
+            const isError = /(?:failed|error|reset|panic|SIGABRT|exception|rejected|timeout|dial|blocked)/i.test(line);
+            const isInteresting = /(?:vless|wireguard|wg-out|vless-out|handshake|established|connected|dns|tun|protect|openTun)/i.test(line);
+            
+            if (isError || isInteresting) {
+              let cleanLine = line;
+              if (line.includes('[MyVpnService-GoCore]')) {
+                cleanLine = `[Native GoCore] ${line.substring(line.indexOf('[MyVpnService-GoCore]') + '[MyVpnService-GoCore]'.length).trim()}`;
+              } else if (line.includes('[MyVpnService]')) {
+                cleanLine = `[Native Service] ${line.substring(line.indexOf('[MyVpnService]') + '[MyVpnService]'.length).trim()}`;
+              } else if (line.includes('[VpnPlugin]')) {
+                cleanLine = `[Native Plugin] ${line.substring(line.indexOf('[VpnPlugin]') + '[VpnPlugin]'.length).trim()}`;
+              }
+              processedLogs.push(cleanLine);
+            }
+          });
+          
+          if (processedLogs.length > 0) {
+            setLogs(old => {
+              const combined = [...old, ...processedLogs];
+              return combined.slice(-250); // limit logs size
+            });
+          }
+        }
+
+        // 2. Check for fatal crash indicators in the log
         const hasFatalError = /(?:fatal|panic|SIGABRT|signal \d+|process crash|died|stopped unexpectedly)/i.test(logText);
         if (hasFatalError) {
           consecutiveFailures++;
@@ -238,7 +274,7 @@ export default function App() {
       } catch (_) {
         // getVpnLogs itself failed - service might be dead
       }
-    }, 5000);
+    }, 3000); // Poll every 3 seconds for faster log streaming
   };
 
   const runEndToEndConnectivityCheck = async () => {
@@ -288,11 +324,74 @@ export default function App() {
     } catch (err) {
       const errTime = new Date().toLocaleTimeString();
       setConnectionCheckStatus('failed');
+      
+      const errMsg = err.message || String(err);
+      let diagnosisLogs = [];
+
+      diagnosisLogs.push(`[${errTime}] [Error] E2E tunnel verification FAILED! 🔴`);
+      diagnosisLogs.push(`[${errTime}] [Error] Diagnostics: ${errMsg}`);
+
+      if (errMsg.toLowerCase().includes('abort') || errMsg.toLowerCase().includes('timeout')) {
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] Cause: Connection Timeout (7000ms exceeded).`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 1. Your mobile carrier (AIS/True/DTAC) might be actively resetting VLESS handshakes (Connection Reset).`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 2. The VPS IP ${activeSettings.serverIp} or VLESS port 443 might be unreachable or firewalled.`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 3. Reality SNI domain mismatch or TLSv1.3 handshake failed.`);
+      } else if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network')) {
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] Cause: Network Egress Blocked.`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 1. VPN tunnel created but local DNS/cellular band blocks port 53 or 443 TCP/UDP completely.`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 2. VPS did not forward the packets out to the public web (check iptables masquerade on VPS).`);
+      } else {
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] Cause: Unknown negotiation failure.`);
+        diagnosisLogs.push(`[${errTime}] [Diagnosis] 👉 Action: Re-check keys_139_84_234_151.json and ensure client keys match server exactly.`);
+      }
+
+      // Perform immediate deep scan of native logs to show actual error details in Live Logs
+      const isNative = window.Capacitor && window.Capacitor.isNative;
+      if (isNative) {
+        try {
+          const logResult = await VpnPlugin.getVpnLogs();
+          const logText = logResult.logs || '';
+          const nativeLines = logText.split('\n').map(l => l.trim()).filter(Boolean);
+          
+          const recentErrors = [];
+          const lastLines = nativeLines.slice(-20);
+          lastLines.forEach(line => {
+            const isErrorLine = /(?:failed|error|reset|panic|SIGABRT|exception|rejected|timeout|dial|blocked)/i.test(line);
+            if (isErrorLine) {
+              let clean = line;
+              if (line.includes('[MyVpnService-GoCore]')) {
+                clean = `[Native GoCore] ${line.substring(line.indexOf('[MyVpnService-GoCore]') + '[MyVpnService-GoCore]'.length).trim()}`;
+              } else if (line.includes('[MyVpnService]')) {
+                clean = `[Native Service] ${line.substring(line.indexOf('[MyVpnService]') + '[MyVpnService]'.length).trim()}`;
+              }
+              recentErrors.push(clean);
+            }
+          });
+          
+          if (recentErrors.length > 0) {
+            diagnosisLogs.push(`[${errTime}] [System] Critical native logs detected during failure:`);
+            recentErrors.slice(-5).forEach(errLine => {
+              diagnosisLogs.push(`  ⚠️ ${errLine}`);
+            });
+          } else {
+            // Print the last few native tunnel events for full visibility
+            const goCoreEvents = lastLines
+              .filter(l => l.includes('[MyVpnService-GoCore]'))
+              .slice(-4)
+              .map(l => `  ➡️ [GoCore] ${l.substring(l.indexOf('[MyVpnService-GoCore]') + '[MyVpnService-GoCore]'.length).trim()}`);
+            if (goCoreEvents.length > 0) {
+              diagnosisLogs.push(`[${errTime}] [System] Last native tunnel events before failure:`);
+              diagnosisLogs.push(...goCoreEvents);
+            }
+          }
+        } catch (logErr) {
+          diagnosisLogs.push(`[${errTime}] [Warning] Could not pull native logs for diagnostics: ${logErr.message || logErr}`);
+        }
+      }
+
       setLogs(old => [
         ...old,
-        `[${errTime}] [Error] E2E tunnel verification FAILED! 🔴`,
-        `[${errTime}] [Error] VPS not responding to internet traffic. Check routing rules.`,
-        `[${errTime}] [Error] Diagnostics: ${err.message || err}`
+        ...diagnosisLogs
       ]);
     }
   };

@@ -2,6 +2,7 @@ package com.shieldlink.vpn;
 
 import android.net.VpnService;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.ParcelFileDescriptor;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -15,6 +16,43 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     private static CommandServer commandServer;
     private ParcelFileDescriptor vpnInterface;
     private volatile boolean isRunning = false;
+    
+    private static final String PREFS_NAME = "shieldlink_vpn_prefs";
+    private static final String PREF_KEY_CONFIG = "last_vpn_config";
+
+    /** Save config to SharedPreferences so it survives service restart */
+    private void saveConfig(String configJson) {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            prefs.edit().putString(PREF_KEY_CONFIG, configJson).apply();
+            L.log("MyVpnService", "Config saved to SharedPreferences (length=" + configJson.length() + ")");
+        } catch (Throwable e) {
+            L.log("MyVpnService", "Failed to save config to SharedPreferences", e);
+        }
+    }
+
+    /** Load config from SharedPreferences (for recovery after crash-restart) */
+    private String loadSavedConfig() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            String config = prefs.getString(PREF_KEY_CONFIG, null);
+            if (config != null && !config.isEmpty()) {
+                L.log("MyVpnService", "Recovered config from SharedPreferences (length=" + config.length() + ")");
+                return config;
+            }
+        } catch (Throwable e) {
+            L.log("MyVpnService", "Failed to load config from SharedPreferences", e);
+        }
+        return null;
+    }
+
+    /** Clear saved config (on intentional disconnect) */
+    private void clearSavedConfig() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            prefs.edit().remove(PREF_KEY_CONFIG).apply();
+        } catch (Throwable ignored) {}
+    }
 
     private void startForegroundServiceHelper() {
         L.log("MyVpnService", "startForegroundServiceHelper called.");
@@ -66,20 +104,40 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        L.log("MyVpnService", "onStartCommand invoked. startId = " + startId);
+        L.log("MyVpnService", "onStartCommand invoked. startId = " + startId + ", flags = " + flags);
         startForegroundServiceHelper();
 
-        if (intent == null) {
-            L.log("MyVpnService", "onStartCommand received null intent.");
-            return START_NOT_STICKY;
+        // Resolve config: from intent, or recovered from SharedPreferences
+        String configJson = null;
+        String configSource = "unknown";
+
+        if (intent != null) {
+            configJson = intent.getStringExtra("config");
+            if (configJson != null && !configJson.isEmpty()) {
+                configSource = "intent";
+                L.log("MyVpnService", "Config received from intent (length=" + configJson.length() + ")");
+                // Save for crash-recovery
+                saveConfig(configJson);
+            }
         }
         
-        String configJson = intent.getStringExtra("config");
-        if (configJson == null) {
-            L.log("MyVpnService", "onStartCommand: config extra is null.");
+        // If intent was null or had no config, try to recover from SharedPreferences
+        if (configJson == null || configJson.isEmpty()) {
+            L.log("MyVpnService", "No config in intent. Attempting recovery from SharedPreferences...");
+            configJson = loadSavedConfig();
+            if (configJson != null) {
+                configSource = "recovered-from-prefs";
+            }
+        }
+
+        // If still no config available, stop the zombie service
+        if (configJson == null || configJson.isEmpty()) {
+            L.log("MyVpnService", "No config available from any source. Stopping zombie service.");
+            stopSelf();
             return START_NOT_STICKY;
         }
-        L.log("MyVpnService", "Received config length = " + configJson.length());
+
+        L.log("MyVpnService", "Using config source: " + configSource + ", length = " + configJson.length());
 
         // Prevent duplicate starts
         if (isRunning && commandServer != null) {
@@ -94,6 +152,8 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
         }
 
         // Start fresh
+        final String finalConfigJson = configJson;
+        final String finalConfigSource = configSource;
         Thread vpnThread = new Thread(() -> {
             try {
                 if (!isLibboxInitialized) {
@@ -132,13 +192,15 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
                     return;
                 }
 
-                L.log("MyVpnService", "Loading sing-box configuration into CommandServer...");
+                L.log("MyVpnService", "Loading sing-box config into CommandServer (source=" + finalConfigSource + ")...");
                 try {
-                    commandServer.startOrReloadService(configJson, new OverrideOptions());
+                    commandServer.startOrReloadService(finalConfigJson, new OverrideOptions());
                     isRunning = true;
-                    L.log("MyVpnService", "CommandServer service started and running.");
+                    L.log("MyVpnService", "CommandServer service started and running successfully!");
                 } catch (Throwable configErr) {
                     L.log("MyVpnService", "startOrReloadService failed (bad config or Go core panic)", configErr);
+                    // Clear the bad config so we don't keep crashing on recovery
+                    clearSavedConfig();
                     cleanupService();
                     stopSelf();
                     return;
@@ -183,6 +245,7 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
     @Override
     public void onDestroy() {
         L.log("MyVpnService", "onDestroy invoked.");
+        clearSavedConfig();
         cleanupService();
         L.log("MyVpnService", "Clean up completed.");
         super.onDestroy();

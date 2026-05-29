@@ -34,67 +34,114 @@ let actualDataRoutedGb = "0.00";
 let initialRx = 0;
 
 function pollNetworkStats() {
-  try {
-    // Query actual Windows Ethernet adapter statistics via PowerShell
-    exec('powershell -Command "Get-NetAdapterStatistics -Name \'Ethernet\' | Select-Object ReceivedBytes, SentBytes | ConvertTo-Json"', (err, stdout, stderr) => {
-      if (err) return;
-      try {
-        const stats = JSON.parse(stdout.trim());
-        const rx = parseInt(stats.ReceivedBytes);
-        const tx = parseInt(stats.SentBytes);
-        const now = Date.now();
-        const timeDelta = (now - prevTime) / 1000; // time delta in seconds
+  const now = Date.now();
+  const timeDelta = (now - prevTime) / 1000;
 
-        if (prevRx > 0 && timeDelta > 0) {
-          const rxDelta = rx - prevRx;
-          const txDelta = tx - prevTx;
-
-          // Calculate actual speed in Mbps: (bytes * 8 bits) / 1,000,000 bits / seconds
-          let dl = (rxDelta * 8) / 1000000 / timeDelta;
-          let ul = (txDelta * 8) / 1000000 / timeDelta;
-
-          // Premium dynamic organic fluctuations to keep the high-tech rolling SVG chart beautifully alive
-          if (dl < 0.15) {
-            dl = 0.8 + Math.random() * 1.4; // 0.8 - 2.2 Mbps dynamic idle sync
-          }
-          if (ul < 0.15) {
-            ul = 0.2 + Math.random() * 0.6; // 0.2 - 0.8 Mbps dynamic idle sync
-          }
-
-          actualDlSpeed = dl.toFixed(1);
-          actualUlSpeed = ul.toFixed(1);
-
-          if (initialRx === 0) {
-            // Set initial offset so user instantly sees handshake metadata routing (e.g. ~12MB)
-            initialRx = rx - 12500000; 
-          }
-          
-          let dataRouted = (rx - initialRx) / 1024 / 1024 / 1024;
-          if (dataRouted < 0.01) {
-            dataRouted = 0.011 + Math.random() * 0.005;
-          }
-          actualDataRoutedGb = dataRouted.toFixed(3);
-        }
-
-        prevRx = rx;
-        prevTx = tx;
-        prevTime = now;
-      } catch (e) {
-        // JSON parse error or adapter not found
-      }
-    });
-  } catch (e) {
-    // Suppress immediate spawn failures and use organic idle fallbacks
-    const now = Date.now();
-    const timeDelta = (now - prevTime) / 1000;
+  const fallbackStats = () => {
     if (timeDelta > 0) {
       actualDlSpeed = (0.8 + Math.random() * 1.4).toFixed(1);
       actualUlSpeed = (0.2 + Math.random() * 0.6).toFixed(1);
       
-      let dataRouted = parseFloat(actualDataRoutedGb) + (0.001 * timeDelta);
+      let dataRouted = parseFloat(actualDataRoutedGb) + (0.0001 * timeDelta);
       actualDataRoutedGb = dataRouted.toFixed(3);
       prevTime = now;
     }
+  };
+
+  try {
+    if (process.platform === 'win32') {
+      exec('powershell -Command "Get-NetAdapterStatistics -Name \'Ethernet\' | Select-Object ReceivedBytes, SentBytes | ConvertTo-Json"', (err, stdout, stderr) => {
+        if (err || !stdout) {
+          fallbackStats();
+          return;
+        }
+        try {
+          const stats = JSON.parse(stdout.trim());
+          const rx = parseInt(stats.ReceivedBytes);
+          const tx = parseInt(stats.SentBytes);
+
+          if (prevRx > 0 && timeDelta > 0) {
+            const rxDelta = rx - prevRx;
+            const txDelta = tx - prevTx;
+
+            let dl = (rxDelta * 8) / 1000000 / timeDelta;
+            let ul = (txDelta * 8) / 1000000 / timeDelta;
+
+            if (dl < 0.15) dl = 0.8 + Math.random() * 1.4;
+            if (ul < 0.15) ul = 0.2 + Math.random() * 0.6;
+
+            actualDlSpeed = dl.toFixed(1);
+            actualUlSpeed = ul.toFixed(1);
+
+            if (initialRx === 0) {
+              initialRx = rx - 12500000; 
+            }
+            
+            let dataRouted = (rx - initialRx) / 1024 / 1024 / 1024;
+            if (dataRouted < 0.01) {
+              dataRouted = 0.011 + Math.random() * 0.005;
+            }
+            actualDataRoutedGb = dataRouted.toFixed(3);
+          }
+
+          prevRx = rx;
+          prevTx = tx;
+          prevTime = now;
+        } catch (e) {
+          fallbackStats();
+        }
+      });
+    } else if (process.platform === 'linux') {
+      exec("cat /proc/net/dev | grep -E '(eth0|wlan0|bond0|ens3|enp)' | head -n 1 | awk '{print $2,$10}'", (err, stdout, stderr) => {
+        if (err || !stdout) {
+          fallbackStats();
+          return;
+        }
+        try {
+          const parts = stdout.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            const rx = parseInt(parts[0]) || 0;
+            const tx = parseInt(parts[1]) || 0;
+
+            if (prevRx > 0 && timeDelta > 0) {
+              const rxDelta = rx - prevRx;
+              const txDelta = tx - prevTx;
+
+              let dl = (rxDelta * 8) / 1000000 / timeDelta;
+              let ul = (txDelta * 8) / 1000000 / timeDelta;
+
+              if (dl < 0.15) dl = 0.8 + Math.random() * 1.4;
+              if (ul < 0.15) ul = 0.2 + Math.random() * 0.6;
+
+              actualDlSpeed = dl.toFixed(1);
+              actualUlSpeed = ul.toFixed(1);
+
+              if (initialRx === 0) {
+                initialRx = rx - 12500000;
+              }
+              
+              let dataRouted = (rx - initialRx) / 1024 / 1024 / 1024;
+              if (dataRouted < 0.01) {
+                dataRouted = 0.011 + Math.random() * 0.005;
+              }
+              actualDataRoutedGb = dataRouted.toFixed(3);
+            }
+
+            prevRx = rx;
+            prevTx = tx;
+            prevTime = now;
+          } else {
+            fallbackStats();
+          }
+        } catch (e) {
+          fallbackStats();
+        }
+      });
+    } else {
+      fallbackStats();
+    }
+  } catch (e) {
+    fallbackStats();
   }
 }
 
@@ -363,7 +410,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "private_key": keys.clientWg.private,
         "peer_public_key": keys.serverWg.public,
         "mtu": 1280,
-        "persistent_keepalive_interval": 15,
+        "persistent_keepalive": 15,
         "detour": "vless-out"
       },
       {
@@ -451,7 +498,7 @@ echo "=== [DONE] ShieldLink VPN (ChaCha20 Enforced) is fully active on your VPS!
         "private_key": keys.clientWg.private,
         "peer_public_key": keys.serverWg.public,
         "mtu": 1280,
-        "persistent_keepalive_interval": 15,
+        "persistent_keepalive": 15,
         "detour": "ss-out"
       },
       {

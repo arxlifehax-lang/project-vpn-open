@@ -315,8 +315,8 @@ public class MyVpnService extends VpnService implements PlatformInterface, Comma
             Builder builder = new Builder();
             builder.setSession("ShieldLink");
 
-            // MTU from options or default 9000
-            int mtu = 9000;
+            // MTU from options or default 1500
+            int mtu = 1500;
             try {
                 int optionsMtu = options.getMTU();
                 if (optionsMtu > 0) mtu = optionsMtu;

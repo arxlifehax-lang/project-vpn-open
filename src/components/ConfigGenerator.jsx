@@ -157,8 +157,8 @@ ListenPort = ${data.wgPort}
 PrivateKey = ${serverWgPrivate}
 MTU = 1360
 
-PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
-PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -j MASQUERADE
 
 [Peer]
 PublicKey = ${clientWgPublic}
@@ -212,9 +212,14 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
       "dns": {
         "servers": [
           {
-            "tag": "dns-direct",
+            "tag": "dns-remote",
             "address": "1.1.1.1",
-            "detour": "direct"
+            "detour": "wg-out"
+          },
+          {
+            "tag": "dns-backup",
+            "address": "8.8.8.8",
+            "detour": "wg-out"
           }
         ]
       },
@@ -224,9 +229,9 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
           "tag": "tun-in",
           "interface_name": "tun0",
           "inet4_address": "172.19.0.1/30",
-          "auto_route": true,
-          "strict_route": true,
-          "stack": "system",
+          "auto_route": false,
+          "strict_route": false,
+          "stack": "gvisor",
           "sniff": true
         }
       ],
@@ -242,6 +247,7 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
           "private_key": clientWgPrivate,
           "peer_public_key": serverWgPublic,
           "mtu": 1280,
+          "persistent_keepalive": 15,
           "detour": "vless-out"
         },
         {
@@ -269,6 +275,10 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
         {
           "type": "direct",
           "tag": "direct"
+        },
+        {
+          "type": "dns",
+          "tag": "dns-out"
         }
       ],
       "route": {
@@ -276,7 +286,7 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
         "rules": [
           {
             "port": [53],
-            "outbound": "dns-direct"
+            "outbound": "dns-out"
           }
         ]
       }
@@ -292,9 +302,14 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
       "dns": {
         "servers": [
           {
-            "tag": "dns-direct",
+            "tag": "dns-remote",
             "address": "1.1.1.1",
-            "detour": "direct"
+            "detour": "wg-out"
+          },
+          {
+            "tag": "dns-backup",
+            "address": "8.8.8.8",
+            "detour": "wg-out"
           }
         ]
       },
@@ -304,9 +319,9 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
           "tag": "tun-in",
           "interface_name": "tun0",
           "inet4_address": "172.19.0.1/30",
-          "auto_route": true,
-          "strict_route": true,
-          "stack": "system",
+          "auto_route": false,
+          "strict_route": false,
+          "stack": "gvisor",
           "sniff": true
         }
       ],
@@ -322,6 +337,7 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
           "private_key": clientWgPrivate,
           "peer_public_key": serverWgPublic,
           "mtu": 1280,
+          "persistent_keepalive": 15,
           "detour": "ss-out"
         },
         {
@@ -380,6 +396,10 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
         {
           "type": "direct",
           "tag": "direct"
+        },
+        {
+          "type": "dns",
+          "tag": "dns-out"
         }
       ],
       "route": {
@@ -387,7 +407,7 @@ echo "=== Installation complete! ShieldLink server is now listening stealthily =
         "rules": [
           {
             "port": [53],
-            "outbound": "dns-direct"
+            "outbound": "dns-out"
           }
         ]
       }
